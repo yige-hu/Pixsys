@@ -1,0 +1,6 @@
+#include "conftest/macros.h"
+#include "conftest/functions.h"
+#include "conftest/symbols.h"
+#include "conftest/types.h"
+#include "conftest/generic.h"
+#include "conftest/headers.h"

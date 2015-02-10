@@ -26,3 +26,20 @@
 *.exe
 *.out
 *.app
+
+# Module files
+*.order
+*.symvers
+*.mod.c
+
+.*
+
+driver_hack/
+*_dev
+
+log.txt
+attack/
+patcher
+patcher_root
+runme_user
+runme

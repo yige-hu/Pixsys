@@ -1,0 +1,17 @@
+you are right, the attack works once
+but it fails after the second invocation
+I think the problem is with the fact that the attack execs and doesn't clean 
+up afte ritself.
+
+I think putting some benign code like fork/exec would make it work. I asked 
+the guy to take a look, but I think you can take a look at the code anyway. 
+
+You now have Pixsys/hooker and Pixsys/src. Pixsys/src contains a file called 
+"install.sh". It does the job. 
+
+Invoke the attack from the Pixsys/attack folder, 
+run "patcher_root" first, to patch and then run "runme_user" -- that' the 
+user level thing
+
+note, patcher_root should run with sudo, and only once -- to patch.
+runme_user should run from not root.
