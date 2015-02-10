@@ -33,11 +33,13 @@
 *.mod.c
 
 .*
+*.bak
 
 driver_hack/
 *_dev
 
 log.txt
+header.txt
 attack/
 patcher
 patcher_root
