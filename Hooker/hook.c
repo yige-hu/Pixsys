@@ -64,6 +64,10 @@ module_param(dma_map_addr,ulong ,0000);
  */
 
 
+///////////////////////////////////////////////////////////////////////
+// https://github.com/lll-project/nvidia/blob/cc3f490e62031d315ce5cd92be87e2a083a80ae8/include/nvidia/nv.h
+///////////////////////////////////////////////////////////////////////
+
 typedef union
 {
     volatile NvV8 Reg008[1];
@@ -219,6 +223,10 @@ typedef struct
 
 #define READ_NUM	200
 
+
+///////////////////////////////////////////////////////////////////////
+// https://github.com/lll-project/nvidia/blob/cc3f490e62031d315ce5cd92be87e2a083a80ae8/include/nvidia/nv-linux.h
+///////////////////////////////////////////////////////////////////////
 
 /*
  * ---------------------------------------------------------------------------
@@ -377,10 +385,6 @@ typedef spinlock_t                nv_spinlock_t;
     (size) = NV_ALIGN_UP((size + sizeof(void *)), sizeof(void *))
 
 
-// ABOVE: https://github.com/lll-project
-/////////////////////////////////////////////////////////////////////////////
-// BELOW: hook
-
 #if defined(NV_GET_NUM_PHYSPAGES_PRESENT)
 #define NV_NUM_PHYSPAGES                get_num_physpages()
 #else
@@ -400,6 +404,11 @@ typedef spinlock_t                nv_spinlock_t;
 
 #define NV_KFREE(ptr, size)  kfree((void *) (ptr));
 #define NV_VFREE(ptr, size) vfree((void *) (ptr));
+
+
+///////////////////////////////////////////////////////////////////////
+// Hook engine
+///////////////////////////////////////////////////////////////////////
 
 unsigned int system_call_addr = 0;
 unsigned int sys_call_table_addr = 0;
@@ -473,6 +482,13 @@ long get_pfn_of_virtual_address(unsigned long address, unsigned long * pfn)
 	return 0;
 
 }
+
+
+//////////////////////////////////////////////////////////////////////
+//
+// https://github.com/lll-project/nvidia/blob/master/src/os-interface.c
+
+
 /*
  * Operating System Memory Functions
  *
@@ -542,12 +558,16 @@ void NV_API_CALL os_free_mem(void *address)
         NV_KFREE(address, size);
 }
 
+//
+//////////////////////////////////////////////////////////////////////
+
+
 NvU64 NV_API_CALL os_get_num_phys_pages(void)
 {
     return (NvU64)NV_NUM_PHYSPAGES;
 }
 
-// Substitution for dma_map
+// Substitution for dma_map_addr
 RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 	    NvU64       page_count,
 	    NvU64      *pte_array,
@@ -723,7 +743,7 @@ typedef RM_STATUS (*NV_API_CALL p_new_funct)( nv_state_t *nv,
 	    void      **priv);
 
 
-// Substitution for m_lock
+// Substitution for m_lock_addr
 RM_STATUS NV_API_CALL new_os_lock_user_pages(
     void   *address,
     NvU64   page_count,
