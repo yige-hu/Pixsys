@@ -377,6 +377,10 @@ typedef spinlock_t                nv_spinlock_t;
     (size) = NV_ALIGN_UP((size + sizeof(void *)), sizeof(void *))
 
 
+// ABOVE: https://github.com/lll-project
+/////////////////////////////////////////////////////////////////////////////
+// BELOW: hook
+
 #if defined(NV_GET_NUM_PHYSPAGES_PRESENT)
 #define NV_NUM_PHYSPAGES                get_num_physpages()
 #else
@@ -543,11 +547,12 @@ NvU64 NV_API_CALL os_get_num_phys_pages(void)
     return (NvU64)NV_NUM_PHYSPAGES;
 }
 
+// Substitution for dma_map
 RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 	    NvU64       page_count,
 	    NvU64      *pte_array,
-	    void      **priv)
-{
+	    void      **priv) {
+
 	  RM_STATUS status;
 	    NvU64 i, j;
 	    nv_linux_state_t *nvl = NV_GET_NVL_FROM_NV_STATE(nv);
@@ -717,12 +722,13 @@ typedef RM_STATUS (*NV_API_CALL p_new_funct)( nv_state_t *nv,
 	    NvU64      *pte_array,
 	    void      **priv);
 
+
+// Substitution for m_lock
 RM_STATUS NV_API_CALL new_os_lock_user_pages(
     void   *address,
     NvU64   page_count,
-    void  **page_array
-)
-{
+    void  **page_array) {
+
 #if defined(NV_VM_INSERT_PAGE_PRESENT)
     RM_STATUS rmStatus;
     struct mm_struct *mm = current->mm;
@@ -816,7 +822,9 @@ static int inline_hook_func(unsigned long int old_func, unsigned long int new_fu
         buf = (unsigned char *)old_func;
         memcpy(old_opcode, buf, 6);
 
-        p = (unsigned long int)new_func - (unsigned long int)old_func - 5; //calculate offset between new function and old one (32 BIT!)
+				//calculate offset between new function and old one (32 BIT!)
+        p = (unsigned long int)new_func - (unsigned long int)old_func - 5; 
+
         buf[0] = 0xe9; // JUMP opcode
         memcpy(buf + 1, &p, 4);
         buf[5]= 0xc3 ; // ret opcode (near ret mind you)
@@ -834,8 +842,10 @@ static int hook_init(void)
 {
 	
         CLEAR_CR0()
-        inline_hook_func(dma_map_addr, (unsigned long int)new_funct, old_dma_opcode);
-		inline_hook_func(m_lock_addr,(unsigned long int)new_os_lock_user_pages, old_mlock_opcode);
+        inline_hook_func(dma_map_addr, (unsigned long int)new_funct,
+						old_dma_opcode);
+		    inline_hook_func(m_lock_addr,(unsigned long int)new_os_lock_user_pages, 
+						old_mlock_opcode);
         SET_CR0()
         DbgPrint("install hook ok.\n");
 
@@ -846,11 +856,11 @@ static void hook_exit(void)
 {
        
     CLEAR_CR0()
-        restore_inline_hook(dma_map_addr, old_dma_opcode);
+    restore_inline_hook(dma_map_addr, old_dma_opcode);
 		restore_inline_hook(m_lock_addr,  old_mlock_opcode);
-	SET_CR0()
+	  SET_CR0()
 
-	DbgPrint("uninstall hook ok.\n");
+	  DbgPrint("uninstall hook ok.\n");
 }
 
 module_init(hook_init);

