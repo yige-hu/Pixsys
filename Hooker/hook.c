@@ -438,6 +438,11 @@ typedef struct hidden_driver_info // For comfort reasons, define the hidden buff
 	long int end_addr;
 } hidden_driver_info ,*p_hidden_info;
 
+
+/*
+ * http://lkml.iu.edu/hypermail/linux/kernel/1107.3/00879.html
+ * virtual to physical address translation
+ */
 long get_pfn_of_virtual_address(unsigned long address, unsigned long * pfn)
 {
 	/*
