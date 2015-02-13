@@ -750,6 +750,7 @@ if (attack_num < 2) {
 				DbgPrint( "*** ATK 2, pte_array[i] is 0x%llx ***\n",pte_array[i]);
 				DbgPrint( "*** Page size is: %d\n",PAGE_SIZE);
 
+#if 1
 				{
 
 					if (rets != RM_OK)
@@ -778,6 +779,7 @@ if (attack_num < 2) {
 
 					DbgPrint("ATK 2: physical address: 0x%llx\n",pte_array[i]);
 				}
+#endif
 
 			if (NV_PCI_DMA_MAPPING_ERROR(dma_map->dev, pte_array[i]) ||
 		            (!IS_DMA_ADDRESSABLE(nv, pte_array[i])))

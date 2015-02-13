@@ -198,7 +198,7 @@ int main(void) {
 
 	char * d_target;
 
-	char * h_target = (char*)malloc(2*pagesize*sizeof(char*));
+//	char * h_target = (char*)malloc(2*pagesize*sizeof(char*));
 	//printf("TARGET a host in place Page2: 0x%08x",*(unsigned int *)(h_target+pagesize));
 	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_target, 2*pagesize*sizeof(char))) ;
 
@@ -243,7 +243,7 @@ int main(void) {
 	f(); // Call "non malicious" function again.
 	CUDA_CHECK_RETURN(cudaGetLastError());
 
-		CUDA_CHECK_RETURN(cudaMemcpy((void *)h_target,d_target, pagesize*sizeof(char),cudaMemcpyDeviceToHost));
+//		CUDA_CHECK_RETURN(cudaMemcpy((void *)h_target,d_target, pagesize*sizeof(char),cudaMemcpyDeviceToHost));
 		//printf("Target is: 0x%08x\n",*(unsigned int *) h_target);
 		//printf("STRNG Target is 0x%08x",*(unsigned int *)(h_target+pagesize));
 		fflush(stdout);
