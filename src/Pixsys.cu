@@ -247,6 +247,8 @@ CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 	/* Get device pointer of this buffer */
 	CUDA_CHECK_RETURN(cudaHostGetDevicePointer((void**)&d_dump_buff, dump_buff,0));
 
+		CUDA_CHECK_RETURN(cudaHostUnregister((void *)dump_buff));
+
 	fflush(stdout);
   // test print cpu side dump_buff, shoud be 4141
 //	printf("dump_buff:\n");
@@ -272,7 +274,6 @@ CUDA_CHECK_NORETURN(cudaPeekAtLastError());
 #ifdef _ATTACK_1
 		CUDA_CHECK_RETURN(cudaHostUnregister((void *)real_buff));
 #endif
-		CUDA_CHECK_RETURN(cudaHostUnregister((void *)dump_buff));
 		CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
 		CUDA_CHECK_NORETURN(cudaGetLastError());
 
